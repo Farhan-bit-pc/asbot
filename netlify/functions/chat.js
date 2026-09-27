@@ -149,27 +149,38 @@ async function callModel(promptText, maxNewTokens) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      inputs: promptText,
-      parameters: {
-        max_new_tokens: maxNewTokens,
-        temperature: 0.8,
-        top_p: 0.9,
-        return_full_text: false,
-      },
+      model: "farhann20/as-chatbot-merged",
+      messages: [
+        {
+          role: "user",
+          content: promptText,
+        },
+      ],
+      max_tokens: maxNewTokens,
+      temperature: 0.8,
+      top_p: 0.9,
+      stream: false,
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`Model API returned ${res.status}: ${errText.slice(0, 300)}`);
+    throw new Error(
+      `Model API returned ${res.status}: ${errText.slice(0, 500)}`
+    );
   }
 
   const data = await res.json();
-  // Serverless Inference API returns [{generated_text: "..."}]; some Inference
-  // Endpoints return a bare object instead — handle both shapes.
-  if (Array.isArray(data)) return (data[0]?.generated_text || "").trim();
-  if (data.generated_text) return data.generated_text.trim();
-  throw new Error(`Unrecognized model API response shape: ${JSON.stringify(data).slice(0, 300)}`);
+
+  const reply = data?.choices?.[0]?.message?.content;
+
+  if (typeof reply === "string") {
+    return reply.trim();
+  }
+
+  throw new Error(
+    `Unrecognized model API response shape: ${JSON.stringify(data).slice(0, 500)}`
+  );
 }
 
 async function extractFacts(speaker, message) {
