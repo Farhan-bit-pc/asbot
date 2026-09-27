@@ -21,10 +21,6 @@
 // size, not identical to the original.
 
 const { getStore } = require("@netlify/blobs");
-const store = getStore("as-chatbot-memory", {
-  siteID: process.env.NETLIFY_SITE_ID,
-  token: process.env.NETLIFY_BLOBS_TOKEN,
-});
 const { SEED_DATA } = require("./seed-data");
 
 const HF_API_URL = process.env.HF_API_URL; // e.g. https://api-inference.huggingface.co/models/your-username/as-chatbot-merged
@@ -242,7 +238,10 @@ exports.handler = async (event) => {
   const personaName = speaker === "Farhan" ? "Ameera" : "Farhan"; // bot plays the other partner
 
   try {
-    const store = getStore("as-chatbot-memory");
+    const store = getStore("as-chatbot-memory", {
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_BLOBS_TOKEN,
+    });
     const { permanent, facts } = await loadMemory(store);
     const { key: historyKey, messages: history, lastActivity } = await loadHistory(store, sessionId);
 
