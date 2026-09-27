@@ -1,0 +1,7 @@
+{
+  "name": "as-chatbot-netlify",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^11.1.1"
+  }
+}

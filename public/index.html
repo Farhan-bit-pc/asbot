@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AS Chatbot</title>
+<style>
+  :root { --bg: #fdf2f6; --bubble-user: #ffd6e6; --bubble-bot: #ffffff; --accent: #e0568c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 16px; text-align: center; font-weight: 600; color: var(--accent); border-bottom: 1px solid #f3d3e0; }
+  #speaker-select { display: flex; justify-content: center; gap: 8px; padding: 8px; }
+  #speaker-select button { border: 1px solid var(--accent); background: white; color: var(--accent); padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+  #speaker-select button.active { background: var(--accent); color: white; }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble { max-width: 75%; padding: 10px 14px; border-radius: 16px; line-height: 1.4; font-size: 15px; }
+  .bubble.user { align-self: flex-end; background: var(--bubble-user); }
+  .bubble.bot { align-self: flex-start; background: var(--bubble-bot); border: 1px solid #f3d3e0; }
+  .bubble.pending { opacity: 0.6; font-style: italic; }
+  .learned-note { font-size: 11px; color: #999; align-self: flex-start; padding-left: 4px; }
+  form { display: flex; padding: 12px; gap: 8px; border-top: 1px solid #f3d3e0; }
+  input[type="text"] { flex: 1; padding: 12px 14px; border-radius: 999px; border: 1px solid #f3d3e0; font-size: 15px; outline: none; }
+  button[type="submit"] { background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 999px; font-weight: 600; cursor: pointer; }
+  #error-banner { display: none; background: #ffe3e3; color: #a11; padding: 8px 16px; font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>AS Chatbot</header>
+  <div id="speaker-select">
+    <button data-speaker="Farhan" class="active">I'm Farhan</button>
+    <button data-speaker="Ameera">I'm Ameera</button>
+  </div>
+  <div id="error-banner"></div>
+  <div id="messages"></div>
+  <form id="chat-form">
+    <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
+    <button type="submit">Send</button>
+  </form>
+
+  <script>
+    // Same-origin: the function lives at /.netlify/functions/chat on this
+    // same site, and netlify.toml redirects /api/chat to it — no separate
+    // backend URL to configure.
+    const API_URL = "/api/chat";
+    const API_KEY = window.AS_CHATBOT_API_KEY || ""; // set this if you configured CHAT_API_KEY
+
+    // a stable per-browser session id, so the bot's short-term memory
+    // (last few messages) persists across page reloads for this device
+    let sessionId = localStorage.getItem("as_chatbot_session");
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem("as_chatbot_session", sessionId);
+    }
+
+    let currentSpeaker = "Farhan";
+    const messagesEl = document.getElementById("messages");
+    const formEl = document.getElementById("chat-form");
+    const inputEl = document.getElementById("chat-input");
+    const errorBanner = document.getElementById("error-banner");
+
+    document.querySelectorAll("#speaker-select button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentSpeaker = btn.dataset.speaker;
+        document.querySelectorAll("#speaker-select button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+    });
+
+    function addBubble(text, cls) {
+      const div = document.createElement("div");
+      div.className = `bubble ${cls}`;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function addLearnedNote(facts) {
+      if (!facts || !facts.length) return;
+      const div = document.createElement("div");
+      div.className = "learned-note";
+      div.textContent = `learned: ${facts.join("; ")}`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.style.display = "block";
+    }
+
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if (!text) return;
+      inputEl.value = "";
+      errorBanner.style.display = "none";
+
+      addBubble(text, "user");
+      const pending = addBubble("...", "bot pending");
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(API_KEY ? { "x-api-key": API_KEY } : {}),
+          },
+          body: JSON.stringify({ speaker: currentSpeaker, message: text, sessionId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server returned ${res.status}`);
+
+        pending.textContent = data.reply;
+        pending.classList.remove("pending");
+        addLearnedNote(data.learned);
+      } catch (err) {
+        pending.remove();
+        showError(`Couldn't reach the bot: ${err.message}`);
+      }
+    });
+  </script>
+</body>
+</html>
